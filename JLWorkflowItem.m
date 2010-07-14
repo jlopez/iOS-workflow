@@ -260,6 +260,7 @@ static NSMutableDictionary *dictionary = nil;
 @implementation JLWorkflowToken
 
 @synthesize step;
+@synthesize completionBlock;
 @synthesize errors;
 
 
@@ -307,8 +308,9 @@ static NSMutableDictionary *tokenAssociations = nil;
 - (void)dealloc {
   debug((@"[%p dealloc]", self));
   [JLWorkflowToken disassociateToken:self];
-  [step release];
   [errors release];
+  [completionBlock release];
+  [step release];
   [super dealloc];
 }
 
@@ -334,6 +336,33 @@ static NSMutableDictionary *tokenAssociations = nil;
 }
 
 
+- (void)notifyCompletion:(void (^)())block errors:(NSArray *)err {
+  NSAssert(!completed, @"notifyCompletion: called on already completed token");
+  completed = YES;
+  if (!self.valid)
+    return;
+  completionBlock = [block copy];
+  errors = [err retain];
+  NSAssert(completionBlock || [errors count], @"One of completionBlock or errors should be specified");
+  [step notifyTokenCompletion:self];
+}
+
+
+- (void)notifyCompletion:(void(^)())instanceUpdateBlock {
+  [self notifyCompletion:instanceUpdateBlock errors:nil];
+}
+
+
+- (void)notifyFailure:(NSError *)error {
+  [self notifyCompletion:completionBlock errors:[NSArray arrayWithObject:error]];
+}
+
+
+- (void)notifyMultipleFailure:(NSArray *)errs {
+  [self notifyCompletion:completionBlock errors:errs];
+}
+
+
 @end
 
 @interface JLWorkflowSyncToken ()
@@ -344,7 +373,8 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 - (void)execute {
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-    self.errors = [step performSyncStepWithToken:self];
+    [step performSyncStepWithToken:self];
+    NSAssert(completed, @"Sync step %@ failed to notify completion", step);
     [step notifyTokenCompletion:self];
   });
 }
@@ -361,27 +391,6 @@ static NSMutableDictionary *tokenAssociations = nil;
 - (void)execute {
   // [step performAsyncStepWithToken:self] on asynThread
   [step performSelector:@selector(performAsyncStepWithToken:) onThread:[JLWorkflowItem asyncThread] withObject:self waitUntilDone:NO];
-}
-
-
-- (void)completeAsynchronousStep {
-  [self completeAsynchronousStepWithErrors:nil];
-}
-
-
-- (void)completeAsynchronousStepWithError:(NSError *)error {
-  if (error)
-    [self completeAsynchronousStepWithErrors:[NSArray arrayWithObject:error]];
-  else
-    [self completeAsynchronousStepWithErrors:nil];
-}
-
-
-- (void)completeAsynchronousStepWithErrors:(NSArray *)errors_ {
-  NSAssert(!completed, @"completeAsynchronousStepWithErrors called on already completed token");
-  completed = YES;
-  self.errors = errors_;
-  [step notifyTokenCompletion:self];
 }
 
 
@@ -544,9 +553,9 @@ static NSMutableDictionary *tokenAssociations = nil;
 }
 
 
-- (NSArray *)performSyncStepWithToken:(JLWorkflowSyncToken *)token {
+- (void)performSyncStepWithToken:(JLWorkflowSyncToken *)token {
   debug((@"%@ - %@: Running", item, metadata.name));
-  return [item performSelector:metadata.syncSelector withObject:token];
+  [item performSelector:metadata.syncSelector withObject:token];
 }
 
 
@@ -562,14 +571,25 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 
 - (void)doNotifyTokenCompletion:(JLWorkflowToken *)token {
-  if (![self isTokenValid:token])
+  if (!token.valid)
     return;
 
-  errors = [token.errors retain];
+  self.errors = [token.errors count] ? token.errors : nil;
+  if (!self.failed) {
+    token.completionBlock();
+    progress = 1;
+  }
+  else
+    progress = 0;
+
   debug((@"%@ - %@: Completed %@", item, metadata.name, self.failed ? @"unsuccessfully" : @"successfully"));
-  progress = [self status] == JLWorkflowStepStatusCompleted ? 1.0 : 0.0;
   [self releaseToken];
   [item poke];
+}
+
+
+- (NSString *)description {
+  return metadata.name;
 }
 
 

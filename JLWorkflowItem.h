@@ -52,14 +52,14 @@ typedef NSUInteger JLWorkflowStepStatus;
 // the step should be broken up into multiple steps.
 // Instance variables should only be modified if isStopping returns NO
 // Return array of errors
-// - (NSArray *)perform<N>Step:(JLWorkflowSyncToken *)token;
+// - (void)perform<N>Step:(JLWorkflowToken *)token;
 
 // Asynchronous execution of step N
 // Should complete quickly, but may be invoked on background thread.
 // May report progress by calling reportStepProgress:
 // Upon step completion, instance variables should be modified if isStopping returns NO
 // The handler should then be invoked.
-// - (void)perform<N>StepAsynchronously:(JLWorkflowAsyncToken *)token;
+// - (void)perform<N>StepAsynchronously:(JLWorkflowToken *)token;
 
 // Optional - Specify progress weights
 // - (float)progressWeightFor<N>Step;
@@ -77,6 +77,8 @@ typedef NSUInteger JLWorkflowStepStatus;
 @interface JLWorkflowToken : NSObject {
 @protected
   JLWorkflowStep *step;
+  BOOL completed;
+  void (^completionBlock)();
   NSArray *errors;
 }
 
@@ -86,10 +88,14 @@ typedef NSUInteger JLWorkflowStepStatus;
 + (id)associatedTokenForObject:(id)obj;
 
 - (void)associateWithObject:(id)obj;
+- (void)notifyCompletion:(void(^)())instanceUpdateBlock;
+- (void)notifyFailure:(NSError *)error;
+- (void)notifyMultipleFailure:(NSArray *)error;
 
 // private
 @property (nonatomic, readonly) JLWorkflowStep *step;
 @property (nonatomic, retain) NSArray *errors;
+@property (nonatomic, readonly) void (^completionBlock)();
 
 - (id)initWithStep:(JLWorkflowStep *)step;
 - (void)execute;
@@ -102,13 +108,7 @@ typedef NSUInteger JLWorkflowStepStatus;
 @end
 
 @interface JLWorkflowAsyncToken : JLWorkflowToken {
-@private
-  BOOL completed;
 }
-
-- (void)completeAsynchronousStep;
-- (void)completeAsynchronousStepWithError:(NSError *)errors;
-- (void)completeAsynchronousStepWithErrors:(NSArray *)errors;
 
 @end
 
@@ -159,7 +159,7 @@ typedef NSUInteger JLWorkflowStepStatus;
 - (BOOL)isTokenValid:(JLWorkflowToken *)token;
 
 - (JLWorkflowStepStatus)status;
-- (NSArray *)performSyncStepWithToken:(JLWorkflowSyncToken *)token;
+- (void)performSyncStepWithToken:(JLWorkflowSyncToken *)token;
 - (void)performAsyncStepWithToken:(JLWorkflowAsyncToken *)token;
 - (void)notifyTokenCompletion:(JLWorkflowToken *)token;
 
