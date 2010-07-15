@@ -11,15 +11,13 @@
 @interface WFStepMetadata : NSObject {
   NSString *name;
   SEL statusSelector;
-  SEL syncSelector;
-  SEL asyncSelector;
   float progressWeight;
 }
 
 @property (nonatomic, readonly) NSString *name;
 @property (nonatomic, readonly) SEL statusSelector;
-@property (nonatomic, readonly) SEL syncSelector;
-@property (nonatomic, readonly) SEL asyncSelector;
+@property (nonatomic, readonly) SEL runSelector;
+@property (nonatomic, readonly) Class tokenClass;
 @property (nonatomic, readonly) float progressWeight;
 
 + (id)metadataForClass:(Class)cls name:(NSString *)stepName;

@@ -16,6 +16,8 @@
   WFObject *item;
   WFStepMetadata *metadata;
   NSInvocation *statusInvocation;
+  NSInvocation *runInvocation;
+  BOOL runReturnsBoolean;
   WFToken *runningToken;
   float progress;
   BOOL completed;
@@ -39,8 +41,7 @@
 - (BOOL)isTokenValid:(WFToken *)token;
 
 - (BOOL)mayRun;
-- (void)performSyncStepWithToken:(WFToken *)token;
-- (void)performAsyncStepWithToken:(WFToken *)token;
+- (NSNumber *)performStepWithToken:(WFToken *)token;
 - (void)notifyTokenCompletion:(WFToken *)token;
 
 @end

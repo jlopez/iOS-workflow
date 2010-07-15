@@ -8,14 +8,43 @@
 #import "WFAsyncToken.h"
 
 #import "WFAsyncThread.h"
+#import "WFStep.h"
 
 
 @implementation WFAsyncToken
 
 
-- (void)execute {
-  // [step performAsyncStepWithToken:self] on asynThread
-  [step performSelector:@selector(performAsyncStepWithToken:) onThread:[WFAsyncThread sharedInstance] withObject:self waitUntilDone:NO];
+- (void)scheduleExecution:(void (^)(void))block {
+  block = [[block copy] autorelease];
+  [self performSelector:@selector(asyncExecute:) onThread:[WFAsyncThread sharedInstance] withObject:block waitUntilDone:NO];
+}
+
+
+- (void)asyncExecute:(void (^)(void))block {
+  block();
+}
+
+
+- (void)processExecutionResult:(NSNumber *)executionResult {
+  // notifyCompletionCalled?   execRes | setCompleted?
+  //           N                 nil   |      -       async, do nothing
+  //           Y                 nil   |      -       sync, notify step
+  //           N                  N    |      Y       sync, already completed, notify step
+  //           Y                  N    |      -       error
+  //           N                  Y    |      -       async, do nothing
+  //           Y                  Y    |      -       sync, notify step
+  BOOL f = [executionResult boolValue];
+  if (!notifyCompletionCalled && !executionResult)
+    return;
+  if (notifyCompletionCalled && !executionResult)
+    f = YES;
+  if (!notifyCompletionCalled && !f)
+    completed = YES;
+  if (notifyCompletionCalled && !f)
+    NSAssert1(NO, @"%@ - notifyCompletion called, but method returned NO", step);
+  if (!notifyCompletionCalled && f)
+    return;
+  [step notifyTokenCompletion:self];
 }
 
 

@@ -11,7 +11,10 @@
 @interface WFToken : NSObject {
 @protected
   WFStep *step;
+  BOOL notifyCompletionCalled;
   BOOL completed;
+  BOOL executing;
+  BOOL executed;
   void (^completionBlock)();
   NSArray *errors;
 }

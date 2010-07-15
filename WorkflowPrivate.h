@@ -15,12 +15,17 @@
 @interface WFToken (WFPrivate)
 
 @property (nonatomic, readonly) WFStep *step;
-@property (nonatomic, retain) NSArray *errors;
-@property (nonatomic, readonly) void (^completionBlock)();
+@property (nonatomic, readonly, retain) NSArray *errors;
+@property (nonatomic, readonly, getter=isCompleted) BOOL completed;
 
 + (void)disassociateToken:(WFToken *)token;
 
 - (id)initWithStep:(WFStep *)step;
 - (void)execute;
+- (void)runCompletionBlock;
+
+// Must be implemented by subclasses
+- (void)scheduleExecution:(void (^)(void))block;
+- (void)processExecutionResult:(NSNumber *)executionResult;
 
 @end

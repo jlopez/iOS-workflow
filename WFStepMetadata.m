@@ -7,13 +7,15 @@
 //
 #import "WFStepMetadata.h"
 
+#import "WFSyncToken.h"
+#import "WFAsyncToken.h"
 
 @implementation WFStepMetadata
 
 @synthesize name;
 @synthesize statusSelector;
-@synthesize syncSelector;
-@synthesize asyncSelector;
+@synthesize runSelector;
+@synthesize tokenClass;
 @synthesize progressWeight;
 
 
@@ -28,12 +30,15 @@
     statusSelector = NSSelectorFromString([NSString stringWithFormat:@"mayRun%@Step", name]);
     NSString *syncName = [NSString stringWithFormat:@"perform%@Step:", name];
     NSString *asyncName = [NSString stringWithFormat:@"perform%@StepAsynchronously:", name];
-    syncSelector = NSSelectorFromString(syncName);
-    if (![cls instancesRespondToSelector:syncSelector])
-      syncSelector = nil;
-    asyncSelector = NSSelectorFromString(asyncName);
-    if (![cls instancesRespondToSelector:asyncSelector])
-      asyncSelector = nil;
+    SEL syncSelector = NSSelectorFromString(syncName);
+    SEL asyncSelector = NSSelectorFromString(asyncName);
+    BOOL hasSyncSelector = [cls instancesRespondToSelector:syncSelector];
+    BOOL hasAsyncSelector = [cls instancesRespondToSelector:asyncSelector];
+    NSAssert3(hasSyncSelector || hasAsyncSelector, @"Class %@ should implement one of %@ or %@", cls, syncName, asyncName);
+    NSAssert3(!hasSyncSelector || !hasAsyncSelector, @"Class %@ should implement only one of %@ and %@", cls, syncName, asyncName);
+    runSelector = hasSyncSelector ? syncSelector : asyncSelector;
+    tokenClass = hasSyncSelector ? [WFSyncToken class] : [WFAsyncToken class];
+
     SEL weightSelector = NSSelectorFromString([NSString stringWithFormat:@"progressWeightFor%@Step", name]);
     NSAssert(![cls instancesRespondToSelector:weightSelector], @"[%@ %@] declared as instance method", cls, NSStringFromSelector(weightSelector));
     progressWeight = 1;
@@ -45,8 +50,6 @@
       [invocation invoke];
       [invocation getReturnValue:&progressWeight];
     }
-    NSAssert3(syncSelector || asyncSelector, @"Class %@ should implement one of %@ or %@", cls, syncName, asyncName);
-    NSAssert3(!syncSelector || !asyncSelector, @"Class %@ should implement only one of %@ and %@", cls, syncName, asyncName);
   }
   return self;
 }

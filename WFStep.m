@@ -47,6 +47,12 @@
   statusInvocation = [[NSInvocation invocationWithMethodSignature:signature] retain];
   [statusInvocation setTarget:item];
   [statusInvocation setSelector:metadata.statusSelector];
+
+  signature = [item methodSignatureForSelector:metadata.runSelector];
+  runInvocation = [[NSInvocation invocationWithMethodSignature:signature] retain];
+  [runInvocation setTarget:item];
+  [runInvocation setSelector:metadata.runSelector];
+  runReturnsBoolean = !strcmp([signature methodReturnType], "c");
 }
 
 
@@ -61,10 +67,7 @@
 - (void)performInBackground {
   NSAssert1(!self.running, @"Step %d is already running", self);
   NSAssert1(!completed, @"Step %d is already completed", self);
-  if (metadata.syncSelector)
-    runningToken = [[WFSyncToken alloc] initWithStep:self];
-  else
-    runningToken = [[WFAsyncToken alloc] initWithStep:self];
+  runningToken = [[metadata.tokenClass alloc] initWithStep:self];
   [runningToken execute];
 }
 
@@ -119,15 +122,26 @@
 }
 
 
-- (void)performSyncStepWithToken:(WFToken *)token {
+- (NSNumber *)performStepWithToken:(WFToken *)token {
   debug((@"%@ - %@: Running", item, metadata.name));
-  [item performSelector:metadata.syncSelector withObject:token];
-}
-
-
-- (void)performAsyncStepWithToken:(WFToken *)token {
-  debug((@"%@ - %@: Running asynchronously", item, metadata.name));
-  [item performSelector:metadata.asyncSelector withObject:token];
+  // Important - Note how runInvocation may not be used from multiple threads
+  // Is this possible? This runs very soon after the step is executed, but
+  // it runs on a separate thread already. If it takes long enough for this
+  // code to be executed, the token may already be invalid and an actual valid
+  // token may already be trying to execute. Unlikely, but possible.
+  // A safer implementation would have a separate NSInvocation per token...
+  // For now we synchronize on the invocation
+  @synchronized (runInvocation) {
+    if (!token.valid)
+      return nil;
+    [runInvocation setArgument:&token atIndex:2];
+    [runInvocation invoke];
+    if (!runReturnsBoolean)
+      return nil;
+    BOOL boolean;
+    [runInvocation getReturnValue:&boolean];
+    return [NSNumber numberWithBool:boolean];
+  }
 }
 
 
@@ -137,18 +151,16 @@
 
 
 - (void)doNotifyTokenCompletion:(WFToken *)token {
-  if (!token.valid)
+  if (!token.valid) {
+    debug((@"%@ - %@: Ignoring completion on invalid token", item, metadata.name));
     return;
+  }
 
   NSAssert2(!completed, @"Called %@ on already completed step %@", NSStringFromSelector(_cmd), self);
-  self.errors = [token.errors count] ? token.errors : nil;
-  if (!self.failed) {
-    token.completionBlock();
-    progress = 1;
-    completed = YES;
-  }
-  else
-    progress = 0;
+  [token runCompletionBlock];
+  completed = token.completed;
+  self.errors = token.errors;
+  progress = token.progress;
 
   debug((@"%@ - %@: Completed %@", item, metadata.name, self.failed ? @"unsuccessfully" : @"successfully"));
   [self releaseToken];

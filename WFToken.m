@@ -10,8 +10,21 @@
 #import "WorkflowPrivate.h"
 #import "WFStep.h"
 
+@interface WFToken ()
+
+@property (nonatomic, readonly) WFStep *step;
+@property (nonatomic, retain) NSArray *errors;
+@property (nonatomic, readonly, getter=isCompleted) BOOL completed;
+@property (nonatomic, copy) void (^completionBlock)();
+
+@end
+
 @implementation WFToken
 
+@synthesize errors;
+@synthesize completionBlock;
+@synthesize step;
+@synthesize completed;
 
 static NSMutableDictionary *tokenAssociations = nil;
 + (void)initialize {
@@ -37,8 +50,8 @@ static NSMutableDictionary *tokenAssociations = nil;
 - (void)dealloc {
   debug((@"[%p dealloc]", self));
   [WFToken disassociateToken:self];
-  [errors release];
-  [completionBlock release];
+  self.errors = nil;
+  self.completionBlock = nil;
   [step release];
   [super dealloc];
 }
@@ -50,25 +63,52 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 
 - (float)progress {
-  return self.valid ? step.progress : 0;
+  if (completed)
+    return 1;
+  if (errors)
+    return 0;
+  if (self.valid)
+    return step.progress;
+  return 0;
 }
 
 
 - (void)setProgress:(float)progress {
+  NSAssert1(!completed && !errors, @"%@ - Attempted to set progress on already executed token", step);
   if (self.valid)
     step.progress = progress;
 }
 
 
+- (void)setErrors:(NSArray *)err {
+  // Custom setter to turn empty arrays into nil
+  if ([err count] == 0)
+    err = nil;
+
+  if (err == errors)
+    return;
+
+  [errors release];
+  errors = [err retain];
+}
+
+
 - (void)notifyCompletion:(void (^)())block errors:(NSArray *)err {
-  NSAssert(!completed, @"notifyCompletion: called on already completed token");
-  completed = YES;
+  NSAssert1(!notifyCompletionCalled, @"%@ - notifyCompletion called on already completed token", step);
+  notifyCompletionCalled = YES;
   if (!self.valid)
     return;
-  completionBlock = [block copy];
-  errors = [err retain];
-  NSAssert(completionBlock || [errors count], @"One of completionBlock or errors should be specified");
-  [step notifyTokenCompletion:self];
+  self.completionBlock = [[block copy] autorelease];
+  self.errors = err; // Automatically sets errors to nil if err is an empty array
+  completed = completionBlock != nil;
+  NSAssert1(completionBlock || errors, @"%@ - Both completionBlock & errors are unset", step);
+  NSAssert1(!completionBlock || !errors, @"%@ - Both completionBlock & errors are set", step);
+
+  // executing
+  //     N       Asynchronous call, notify step
+  //     Y       Synchronous call, do not notify step, sync execute will do
+  if (!executing)
+    [step notifyTokenCompletion:self];
 }
 
 
@@ -104,40 +144,43 @@ static NSMutableDictionary *tokenAssociations = nil;
 }
 
 
-- (WFStep *)step {
-  return step;
-}
-
-
-- (void(^)())completionBlock {
-  return completionBlock;
-}
-
-
-- (NSArray *)errors {
-  return errors;
-}
-
-
-- (void)setErrors:(NSArray *)err {
-  if (err == errors)
-    return;
-
-  [errors release];
-  errors = [err retain];
-}
-
-
-- (void)execute {
-  NSAssert(NO, @"[JLWorkflowToken execute] pure virtual function");
-}
-
-
 - (id)initWithStep:(WFStep *)s {
   if (self = [super init]) {
     step = [s retain];
   }
   return self;
+}
+
+
+- (void)execute {
+  NSAssert1(!executing && !executed, @"%@ - [WFToken doExecute] called already", step);
+  [self scheduleExecution:^{
+    NSAssert1(!executing && !executed, @"%@ - [WFToken doExecute] called already", step);
+    executing = YES;
+    NSNumber *executionResult = [step performStepWithToken:self];
+    executing = NO;
+    executed = YES;
+    NSAssert1(notifyCompletionCalled || (!completionBlock && !errors), @"%@ - notifyCompletion not called, yet completionBlock or errors set", step);
+    [self processExecutionResult:executionResult];
+  }];
+}
+
+
+- (void)runCompletionBlock {
+  NSAssert(errors == nil || completionBlock == nil, @"Token for step %@ has both errors and completionBlock set", step);
+  if (completionBlock)
+    completionBlock();
+  self.completionBlock = nil;
+}
+
+
+- (void)scheduleExecution:(void (^)(void))block {
+  NSAssert1(NO, @"%@ - [WFToken scheduleExecution:] pure virtual function", step);
+}
+
+
+- (void)processExecutionResult:(NSNumber *)executionResult {
+  NSAssert1(NO, @"%@ - [WFToken processExecutionResult:] pure virtual function", step);
 }
 
 
