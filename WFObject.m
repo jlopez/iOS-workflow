@@ -1,11 +1,11 @@
 //
-//  JLWorkflowItem.m
+//  WFObject.m
 //  Workflow
 //
 //  Created by jlopez on 7/13/10.
 //  Copyright 2010 JLA. All rights reserved.
 //
-#import "JLWorkflowItem.h"
+#import "WFObject.h"
 
 #import <objc/runtime.h>
 
@@ -13,7 +13,7 @@
 
 static NSThread *asyncThread;
 
-@interface JLWorkflowItem ()
+@interface WFObject ()
 
 @property (nonatomic, assign) BOOL enabled;
 
@@ -25,14 +25,14 @@ static NSThread *asyncThread;
 @end
 
 
-@implementation JLWorkflowItem
+@implementation WFObject
 
 @synthesize enabled;
 
 
 static NSMutableDictionary *dictionary = nil;
 + (NSArray *)metadata {
-  @synchronized ([JLWorkflowItem class]) {
+  @synchronized ([WFObject class]) {
     NSString *key = NSStringFromClass(self);
     NSArray *metadata = [dictionary objectForKey:key];
     if (!metadata) {
@@ -48,7 +48,7 @@ static NSMutableDictionary *dictionary = nil;
 
 
 + (NSArray *)introspect {
-  NSAssert(self != [JLWorkflowItem class], @"JLWorkflowItem must be subclassed");
+  NSAssert(self != [WFObject class], @"JLWorkflowItem must be subclassed");
 
   NSMutableArray *metadata = [NSMutableArray array];
   float totalWeight = 0;
@@ -60,7 +60,7 @@ static NSMutableDictionary *dictionary = nil;
     if ([name length] <= 6 + 4 || ![name hasPrefix:@"mayRun"] || ![name hasSuffix:@"Step"])
       continue;
     NSString *stepName = [name substringWithRange:NSMakeRange(6, [name length] - 4 - 6)];
-    JLWorkflowStepMetadata *stepMetadata = [JLWorkflowStepMetadata metadataForClass:self name:(NSString *)stepName];
+    WFStepMetadata *stepMetadata = [WFStepMetadata metadataForClass:self name:(NSString *)stepName];
     [metadata addObject:stepMetadata];
     totalWeight += stepMetadata.progressWeight;
   }
@@ -69,7 +69,7 @@ static NSMutableDictionary *dictionary = nil;
   NSAssert1([metadata count], @"Class %@ does not implement any method matching mayRun<N>Step", self);
   NSAssert(totalWeight > 0, @"Invalid progress weights: Sum(weight) == 0");
 
-  for (JLWorkflowStepMetadata *step in metadata)
+  for (WFStepMetadata *step in metadata)
     [step normalizeWeightUsingFactor:totalWeight];
 
   return [NSArray arrayWithArray:metadata];
@@ -77,7 +77,7 @@ static NSMutableDictionary *dictionary = nil;
 
 
 + (NSThread *)asyncThread {
-  @synchronized ([JLWorkflowItem class]) {
+  @synchronized ([WFObject class]) {
     if (!asyncThread)
       asyncThread = [JLWorkflowAsyncThread new];
     return asyncThread;
@@ -106,8 +106,8 @@ static NSMutableDictionary *dictionary = nil;
 - (void)initialize {
   metadata = [[self class] metadata];
   NSMutableArray *accum = [NSMutableArray arrayWithCapacity:[metadata count]];
-  for (JLWorkflowStepMetadata *stepMetadata in metadata)
-    [accum addObject:[JLWorkflowStep stepForItem:self metadata:stepMetadata]];
+  for (WFStepMetadata *stepMetadata in metadata)
+    [accum addObject:[WFStep stepForItem:self metadata:stepMetadata]];
   steps = [[NSArray alloc] initWithArray:accum];
 }
 
@@ -135,7 +135,7 @@ static NSMutableDictionary *dictionary = nil;
   if (!enabled)
     return;
 
-  for (JLWorkflowStep *step in steps) {
+  for (WFStep *step in steps) {
     if (step.running)
       continue;
     if (step.completed)
@@ -153,7 +153,7 @@ static NSMutableDictionary *dictionary = nil;
     return;
 
   self.enabled = NO;
-  for (JLWorkflowStep *step in steps)
+  for (WFStep *step in steps)
     [step cancel];
 }
 
@@ -162,14 +162,14 @@ static NSMutableDictionary *dictionary = nil;
   NSAssert2([NSThread isMainThread], @"[%@ %@] may only be called on main thread", [self class], NSStringFromSelector(_cmd));
   NSAssert(!enabled, @"Can't call reset on running item");
 
-  for (JLWorkflowStep *step in steps)
+  for (WFStep *step in steps)
     [step reset];
 }
 
 
 - (float)overallProgress {
   float overallProgress = 0;
-  for (JLWorkflowStep *step in steps)
+  for (WFStep *step in steps)
     overallProgress += step.weightedProgress;
   return overallProgress;
 }
@@ -213,7 +213,7 @@ static NSMutableDictionary *dictionary = nil;
 //
 - (NSArray *)errors {
   NSMutableArray *accum = nil;
-  for (JLWorkflowStep *step in steps) {
+  for (WFStep *step in steps) {
     if (!step.failed)
       continue;
     if (accum == nil)
@@ -231,7 +231,7 @@ static NSMutableDictionary *dictionary = nil;
 
 
 - (BOOL)running {
-  for (JLWorkflowStep *step in steps)
+  for (WFStep *step in steps)
     if (step.running)
       return YES;
   return NO;
@@ -239,7 +239,7 @@ static NSMutableDictionary *dictionary = nil;
 
 
 - (BOOL)completed {
-  for (JLWorkflowStep *step in steps)
+  for (WFStep *step in steps)
     if (step.completed)
       return YES;
   return NO;
@@ -247,7 +247,7 @@ static NSMutableDictionary *dictionary = nil;
 
 
 - (BOOL)failed {
-  for (JLWorkflowStep *step in steps)
+  for (WFStep *step in steps)
     if (step.failed)
       return YES;
   return NO;
@@ -256,10 +256,10 @@ static NSMutableDictionary *dictionary = nil;
 
 @end
 
-@interface JLWorkflowToken ()
+@interface WFToken ()
 @end
 
-@implementation JLWorkflowToken
+@implementation WFToken
 
 @synthesize step;
 @synthesize completionBlock;
@@ -268,7 +268,7 @@ static NSMutableDictionary *dictionary = nil;
 
 static NSMutableDictionary *tokenAssociations = nil;
 + (void)initialize {
-  if (self == [JLWorkflowToken class])
+  if (self == [WFToken class])
     tokenAssociations = [NSMutableDictionary new];
 }
 
@@ -280,7 +280,7 @@ static NSMutableDictionary *tokenAssociations = nil;
 }
 
 
-+ (void)disassociateToken:(JLWorkflowToken *)token {
++ (void)disassociateToken:(WFToken *)token {
   @synchronized (tokenAssociations) {
     NSMutableArray *keys = [NSMutableArray array];
     for (NSValue *key in tokenAssociations) {
@@ -299,7 +299,7 @@ static NSMutableDictionary *tokenAssociations = nil;
 }
 
 
-- (id)initWithStep:(JLWorkflowStep *)s {
+- (id)initWithStep:(WFStep *)s {
   if (self = [super init]) {
     step = [s retain];
   }
@@ -309,7 +309,7 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 - (void)dealloc {
   debug((@"[%p dealloc]", self));
-  [JLWorkflowToken disassociateToken:self];
+  [WFToken disassociateToken:self];
   [errors release];
   [completionBlock release];
   [step release];
@@ -367,10 +367,10 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 @end
 
-@interface JLWorkflowSyncToken ()
+@interface WFSyncToken ()
 @end
 
-@implementation JLWorkflowSyncToken
+@implementation WFSyncToken
 
 
 - (void)execute {
@@ -384,21 +384,21 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 @end
 
-@interface JLWorkflowAsyncToken ()
+@interface WFAsyncToken ()
 @end
 
-@implementation JLWorkflowAsyncToken
+@implementation WFAsyncToken
 
 
 - (void)execute {
   // [step performAsyncStepWithToken:self] on asynThread
-  [step performSelector:@selector(performAsyncStepWithToken:) onThread:[JLWorkflowItem asyncThread] withObject:self waitUntilDone:NO];
+  [step performSelector:@selector(performAsyncStepWithToken:) onThread:[WFObject asyncThread] withObject:self waitUntilDone:NO];
 }
 
 
 @end
 
-@implementation JLWorkflowStepMetadata
+@implementation WFStepMetadata
 
 @synthesize name;
 @synthesize statusSelector;
@@ -455,25 +455,25 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 @end
 
-@interface JLWorkflowStep ()
+@interface WFStep ()
 
 - (void)initialize;
 - (void)releaseToken;
 
 @end
 
-@implementation JLWorkflowStep
+@implementation WFStep
 
 @synthesize progress;
 @synthesize completed;
 @synthesize errors;
 
-+ (id)stepForItem:(JLWorkflowItem *)item metadata:(JLWorkflowStepMetadata *)metadata {
++ (id)stepForItem:(WFObject *)item metadata:(WFStepMetadata *)metadata {
   return [[[self alloc] initForItem:item metadata:metadata] autorelease];
 }
 
 
-- (id)initForItem:(JLWorkflowItem *)item_ metadata:(JLWorkflowStepMetadata *)metadata_ {
+- (id)initForItem:(WFObject *)item_ metadata:(WFStepMetadata *)metadata_ {
   if (self = [super init]) {
     item = item_;
     metadata = metadata_;
@@ -503,9 +503,9 @@ static NSMutableDictionary *tokenAssociations = nil;
   NSAssert1(!self.running, @"Step %d is already running", self);
   NSAssert1(!completed, @"Step %d is already completed", self);
   if (metadata.syncSelector)
-    runningToken = [[JLWorkflowSyncToken alloc] initWithStep:self];
+    runningToken = [[WFSyncToken alloc] initWithStep:self];
   else
-    runningToken = [[JLWorkflowAsyncToken alloc] initWithStep:self];
+    runningToken = [[WFAsyncToken alloc] initWithStep:self];
   [runningToken execute];
 }
 
@@ -529,7 +529,7 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 
 - (void)releaseToken {
-  [JLWorkflowToken disassociateToken:runningToken];
+  [WFToken disassociateToken:runningToken];
   [runningToken release];
   runningToken = nil;
 }
@@ -552,29 +552,29 @@ static NSMutableDictionary *tokenAssociations = nil;
 }
 
 
-- (BOOL)isTokenValid:(JLWorkflowToken *)token {
+- (BOOL)isTokenValid:(WFToken *)token {
   return runningToken == token;
 }
 
 
-- (void)performSyncStepWithToken:(JLWorkflowSyncToken *)token {
+- (void)performSyncStepWithToken:(WFSyncToken *)token {
   debug((@"%@ - %@: Running", item, metadata.name));
   [item performSelector:metadata.syncSelector withObject:token];
 }
 
 
-- (void)performAsyncStepWithToken:(JLWorkflowAsyncToken *)token {
+- (void)performAsyncStepWithToken:(WFAsyncToken *)token {
   debug((@"%@ - %@: Running asynchronously", item, metadata.name));
   [item performSelector:metadata.asyncSelector withObject:token];
 }
 
 
-- (void)notifyTokenCompletion:(JLWorkflowToken *)token {
+- (void)notifyTokenCompletion:(WFToken *)token {
   [self performSelectorOnMainThread:@selector(doNotifyTokenCompletion:) withObject:token waitUntilDone:NO];
 }
 
 
-- (void)doNotifyTokenCompletion:(JLWorkflowToken *)token {
+- (void)doNotifyTokenCompletion:(WFToken *)token {
   if (!token.valid)
     return;
 

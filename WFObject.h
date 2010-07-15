@@ -1,18 +1,12 @@
 //
-//  JLWorkflowItem.h
+//  WFObject.h
 //  Workflow
 //
 //  Created by jlopez on 7/13/10.
 //  Copyright 2010 JLA. All rights reserved.
 //
 
-@class JLWorkflowToken;
-@class JLWorkflowSyncToken;
-@class JLWorkflowAsyncToken;
-@class JLWorkflowStepMetadata;
-@class JLWorkflowStep;
-
-@interface JLWorkflowItem : NSObject<NSCoding> {
+@interface WFObject : NSObject<NSCoding> {
 @private
   NSArray *metadata;
   NSArray *steps;
@@ -67,9 +61,11 @@
 
 @end
 
-@interface JLWorkflowToken : NSObject {
+@class WFStep;
+
+@interface WFToken : NSObject {
 @protected
-  JLWorkflowStep *step;
+  WFStep *step;
   BOOL completed;
   void (^completionBlock)();
   NSArray *errors;
@@ -86,26 +82,26 @@
 - (void)notifyMultipleFailure:(NSArray *)error;
 
 // private
-@property (nonatomic, readonly) JLWorkflowStep *step;
+@property (nonatomic, readonly) WFStep *step;
 @property (nonatomic, retain) NSArray *errors;
 @property (nonatomic, readonly) void (^completionBlock)();
 
-- (id)initWithStep:(JLWorkflowStep *)step;
+- (id)initWithStep:(WFStep *)step;
 - (void)execute;
 
 @end
 
-@interface JLWorkflowSyncToken : JLWorkflowToken {
+@interface WFSyncToken : WFToken {
 }
 
 @end
 
-@interface JLWorkflowAsyncToken : JLWorkflowToken {
+@interface WFAsyncToken : WFToken {
 }
 
 @end
 
-@interface JLWorkflowStepMetadata : NSObject {
+@interface WFStepMetadata : NSObject {
   NSString *name;
   SEL statusSelector;
   SEL syncSelector;
@@ -126,12 +122,12 @@
 
 @end
 
-@interface JLWorkflowStep : NSObject {
+@interface WFStep : NSObject {
 @private
-  JLWorkflowItem *item;
-  JLWorkflowStepMetadata *metadata;
+  WFObject *item;
+  WFStepMetadata *metadata;
   NSInvocation *statusInvocation;
-  JLWorkflowToken *runningToken;
+  WFToken *runningToken;
   float progress;
   BOOL completed;
   NSArray *errors;
@@ -144,19 +140,19 @@
 @property (nonatomic, retain) NSArray *errors;
 @property (nonatomic, readonly, getter=isFailed) BOOL failed;
 
-+ (id)stepForItem:(JLWorkflowItem *)item metadata:(JLWorkflowStepMetadata *)metadata;
++ (id)stepForItem:(WFObject *)item metadata:(WFStepMetadata *)metadata;
 
-- (id)initForItem:(JLWorkflowItem *)item metadata:(JLWorkflowStepMetadata *)metadata;
+- (id)initForItem:(WFObject *)item metadata:(WFStepMetadata *)metadata;
 - (void)reset;
 - (void)cancel;
 - (void)performInBackground;
 
-- (BOOL)isTokenValid:(JLWorkflowToken *)token;
+- (BOOL)isTokenValid:(WFToken *)token;
 
 - (BOOL)mayRun;
-- (void)performSyncStepWithToken:(JLWorkflowSyncToken *)token;
-- (void)performAsyncStepWithToken:(JLWorkflowAsyncToken *)token;
-- (void)notifyTokenCompletion:(JLWorkflowToken *)token;
+- (void)performSyncStepWithToken:(WFSyncToken *)token;
+- (void)performAsyncStepWithToken:(WFAsyncToken *)token;
+- (void)notifyTokenCompletion:(WFToken *)token;
 
 @end
 
