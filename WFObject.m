@@ -149,10 +149,10 @@ static NSMutableDictionary *dictionary = nil;
 
 - (void)reset {
   NSAssert2([NSThread isMainThread], @"[%@ %@] may only be called on main thread", [self class], NSStringFromSelector(_cmd));
-  NSAssert(!enabled, @"Can't call reset on running item");
 
   for (WFStep *step in steps)
     [step reset];
+  [self poke];
 }
 
 

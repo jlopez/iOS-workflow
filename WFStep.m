@@ -95,7 +95,10 @@
 
 
 - (void)reset {
-  NSAssert1(!self.running, @"Can't reset running step %@", self);
+  if (self.running)
+    return;
+
+  completed = NO;
   [errors release];
   errors = nil;
 }
