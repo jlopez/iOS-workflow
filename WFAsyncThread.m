@@ -61,16 +61,21 @@ static WFAsyncThread *sharedInstance = nil;
 
 
 - (void)main {
-  NSAutoreleasePool *pool = [NSAutoreleasePool new];
+  NSAutoreleasePool *outerPool = [NSAutoreleasePool new];
   @try {
     while (running) {
-      [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:600]];
+      NSAutoreleasePool *pool = [NSAutoreleasePool new];
+      @try {
+        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:600]];
+      } @finally {
+        [pool release];
+      }
     }
   } @catch (NSException *exception) {
     NSLog(@"Exception caught: %@ %@", exception, [exception userInfo]);
   } @finally {
     NSLog(@"Exiting AsyncThread");
-    [pool release];
+    [outerPool release];
   }
 }
 
