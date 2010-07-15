@@ -164,42 +164,6 @@ static NSMutableDictionary *dictionary = nil;
 }
 
 
-//- (float)progressForStep:(int)step;
-//- (BOOL)isStepRunning:(int)step;
-//- (BOOL)isStepCompleted:(int)step;
-//- (BOOL)isStepFailed:(int)step;
-//- (NSArray *)errorsForStep:(int)step;
-//
-//- (float)progressForStep:(int)step {
-//  return [[steps objectAtIndex:step] progress];
-//}
-//
-//
-//- (void)setProgress:(float)progress forStep:(int)step {
-//  [[steps objectAtIndex:step] setProgress:progress];
-//}
-//
-//
-//- (BOOL)isStepRunning:(int)step {
-//  return [[steps objectAtIndex:step] isRunning];
-//}
-//
-//
-//- (BOOL)isStepCompleted:(int)step {
-//  return [[steps objectAtIndex:step] status] == JLWorkflowStepStatusCompleted;
-//}
-//
-//
-//- (BOOL)isStepFailed:(int)step {
-//  return [[steps objectAtIndex:step] isFailed];
-//}
-//
-//
-//- (NSArray *)errorsForStep:(int)step {
-//  return [[steps objectAtIndex:step] errors];
-//}
-//
-//
 - (NSArray *)errors {
   NSMutableArray *accum = nil;
   for (WFStep *step in steps) {
