@@ -12,13 +12,6 @@
 @class JLWorkflowStepMetadata;
 @class JLWorkflowStep;
 
-enum {
-  JLWorkflowStepStatusUnmetDependency = 0,
-  JLWorkflowStepStatusCanRun,
-  JLWorkflowStepStatusCompleted
-};
-typedef NSUInteger JLWorkflowStepStatus;
-
 @interface JLWorkflowItem : NSObject<NSCoding> {
 @private
   NSArray *metadata;
@@ -41,8 +34,8 @@ typedef NSUInteger JLWorkflowStepStatus;
 // Internal API
 // Called on subclass
 
-// Step status
-// - (JLWorkflowStepStatus)statusFor<NAME>Step;
+// Are all dependencies met for step NAME?
+// - (BOOL)mayRun<NAME>Step;
 
 // Synchronous execution of step N
 // Will be invoked on background thread.
@@ -140,10 +133,12 @@ typedef NSUInteger JLWorkflowStepStatus;
   NSInvocation *statusInvocation;
   JLWorkflowToken *runningToken;
   float progress;
+  BOOL completed;
   NSArray *errors;
 }
 
 @property (nonatomic, readonly, getter=isRunning) BOOL running;
+@property (nonatomic, readonly) BOOL completed;
 @property (nonatomic, assign) float progress;
 @property (nonatomic, readonly) float weightedProgress;
 @property (nonatomic, retain) NSArray *errors;
@@ -158,7 +153,7 @@ typedef NSUInteger JLWorkflowStepStatus;
 
 - (BOOL)isTokenValid:(JLWorkflowToken *)token;
 
-- (JLWorkflowStepStatus)status;
+- (BOOL)mayRun;
 - (void)performSyncStepWithToken:(JLWorkflowSyncToken *)token;
 - (void)performAsyncStepWithToken:(JLWorkflowAsyncToken *)token;
 - (void)notifyTokenCompletion:(JLWorkflowToken *)token;

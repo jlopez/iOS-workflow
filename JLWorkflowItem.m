@@ -57,16 +57,16 @@ static NSMutableDictionary *dictionary = nil;
   for (int i = 0; i < methodCount; ++i) {
     SEL sel = method_getName(methods[i]);
     NSString *name = NSStringFromSelector(sel);
-    if ([name length] <= 9 + 4 || ![name hasPrefix:@"statusFor"] || ![name hasSuffix:@"Step"])
+    if ([name length] <= 6 + 4 || ![name hasPrefix:@"mayRun"] || ![name hasSuffix:@"Step"])
       continue;
-    NSString *stepName = [name substringWithRange:NSMakeRange(9, [name length] - 4 - 9)];
+    NSString *stepName = [name substringWithRange:NSMakeRange(6, [name length] - 4 - 6)];
     JLWorkflowStepMetadata *stepMetadata = [JLWorkflowStepMetadata metadataForClass:self name:(NSString *)stepName];
     [metadata addObject:stepMetadata];
     totalWeight += stepMetadata.progressWeight;
   }
   free(methods);
 
-  NSAssert1([metadata count], @"Class %@ does not implement any method matching statusFor<N>Step", self);
+  NSAssert1([metadata count], @"Class %@ does not implement any method matching mayRun<N>Step", self);
   NSAssert(totalWeight > 0, @"Invalid progress weights: Sum(weight) == 0");
 
   for (JLWorkflowStepMetadata *step in metadata)
@@ -138,7 +138,9 @@ static NSMutableDictionary *dictionary = nil;
   for (JLWorkflowStep *step in steps) {
     if (step.running)
       continue;
-    if ([step status] != JLWorkflowStepStatusCanRun)
+    if (step.completed)
+      continue;
+    if (![step mayRun])
       continue;
     [step performInBackground];
   }
@@ -238,7 +240,7 @@ static NSMutableDictionary *dictionary = nil;
 
 - (BOOL)completed {
   for (JLWorkflowStep *step in steps)
-    if ([step status] == JLWorkflowStepStatusCompleted)
+    if (step.completed)
       return YES;
   return NO;
 }
@@ -413,7 +415,7 @@ static NSMutableDictionary *tokenAssociations = nil;
 - (id)initForClass:(Class)cls name:(NSString *)stepName {
   if (self = [super init]) {
     name = [stepName copy];
-    statusSelector = NSSelectorFromString([NSString stringWithFormat:@"statusFor%@Step", name]);
+    statusSelector = NSSelectorFromString([NSString stringWithFormat:@"mayRun%@Step", name]);
     NSString *syncName = [NSString stringWithFormat:@"perform%@Step:", name];
     NSString *asyncName = [NSString stringWithFormat:@"perform%@StepAsynchronously:", name];
     syncSelector = NSSelectorFromString(syncName);
@@ -463,6 +465,7 @@ static NSMutableDictionary *tokenAssociations = nil;
 @implementation JLWorkflowStep
 
 @synthesize progress;
+@synthesize completed;
 @synthesize errors;
 
 + (id)stepForItem:(JLWorkflowItem *)item metadata:(JLWorkflowStepMetadata *)metadata {
@@ -498,6 +501,7 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 - (void)performInBackground {
   NSAssert1(!self.running, @"Step %d is already running", self);
+  NSAssert1(!completed, @"Step %d is already completed", self);
   if (metadata.syncSelector)
     runningToken = [[JLWorkflowSyncToken alloc] initWithStep:self];
   else
@@ -511,8 +515,8 @@ static NSMutableDictionary *tokenAssociations = nil;
 }
 
 
-- (JLWorkflowStepStatus)status {
-  JLWorkflowStepStatus returnValue;
+- (BOOL)mayRun {
+  BOOL returnValue;
   [statusInvocation invoke];
   [statusInvocation getReturnValue:&returnValue];
   return returnValue;
@@ -574,10 +578,12 @@ static NSMutableDictionary *tokenAssociations = nil;
   if (!token.valid)
     return;
 
+  NSAssert2(!completed, @"Called %@ on already completed step %@", NSStringFromSelector(_cmd), self);
   self.errors = [token.errors count] ? token.errors : nil;
   if (!self.failed) {
     token.completionBlock();
     progress = 1;
+    completed = YES;
   }
   else
     progress = 0;
