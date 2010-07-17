@@ -48,7 +48,6 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 
 - (void)dealloc {
-  debug((@"[%p dealloc]", self));
   [WFToken disassociateToken:self];
   self.errors = nil;
   self.completionBlock = nil;
