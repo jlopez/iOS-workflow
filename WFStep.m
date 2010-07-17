@@ -48,12 +48,6 @@
   statusInvocation = [[NSInvocation invocationWithMethodSignature:signature] retain];
   [statusInvocation setTarget:item];
   [statusInvocation setSelector:metadata.statusSelector];
-
-  signature = [item methodSignatureForSelector:metadata.runSelector];
-  runInvocation = [[NSInvocation invocationWithMethodSignature:signature] retain];
-  [runInvocation setTarget:item];
-  [runInvocation setSelector:metadata.runSelector];
-  runReturnsBoolean = !strcmp([signature methodReturnType], "c");
 }
 
 
@@ -125,24 +119,30 @@
 
 - (NSNumber *)performStepWithToken:(WFToken *)token {
   debug((@"%@ - %@: Running", item, metadata.name));
-  // Important - Note how runInvocation may not be used from multiple threads
-  // Is this possible? This runs very soon after the step is executed, but
-  // it runs on a separate thread already. If it takes long enough for this
-  // code to be executed, the token may already be invalid and an actual valid
-  // token may already be trying to execute. Unlikely, but possible.
-  // A safer implementation would have a separate NSInvocation per token...
-  // For now we synchronize on the invocation
-  @synchronized (runInvocation) {
-    if (!token.valid)
-      return nil;
-    [runInvocation setArgument:&token atIndex:2];
-    [runInvocation invoke];
-    if (!runReturnsBoolean)
-      return nil;
-    BOOL boolean;
-    [runInvocation getReturnValue:&boolean];
-    return [NSNumber numberWithBool:boolean];
-  }
+  // Important - Note how runInvocation is created here every time.
+  // Why isn't it cached by WFStep? Not how a cached NSInvocation
+  // may not be used from multiple threads, since each instance will
+  // have a different token as arg2. Would that actually happen?
+  // Previously we thought this was unlikely, but it's actually
+  // quite common for synchronous steps. The sync step can take a
+  // while to complete. If during this time the step is canceled,
+  // and then the WFObject is restarted, the new token
+  // will attempt execution while the previous one is still holding
+  // the NSInvocation lock. This will cause the new execution to wait
+  // until the previous invalid execution returns.
+  // The correct implementation requires per token NSInvocation...
+  NSMethodSignature *signature = [item methodSignatureForSelector:metadata.runSelector];
+  BOOL runReturnsBoolean = !strcmp([signature methodReturnType], "c");
+  NSInvocation *runInvocation = [NSInvocation invocationWithMethodSignature:signature];
+  [runInvocation setTarget:item];
+  [runInvocation setSelector:metadata.runSelector];
+  [runInvocation setArgument:&token atIndex:2];
+  [runInvocation invoke];
+  if (!runReturnsBoolean)
+    return nil;
+  BOOL boolean;
+  [runInvocation getReturnValue:&boolean];
+  return [NSNumber numberWithBool:boolean];
 }
 
 

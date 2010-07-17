@@ -16,8 +16,6 @@
   WFObject *item;
   WFStepMetadata *metadata;
   NSInvocation *statusInvocation;
-  NSInvocation *runInvocation;
-  BOOL runReturnsBoolean;
   WFToken *runningToken;
   float progress;
   BOOL completed;
