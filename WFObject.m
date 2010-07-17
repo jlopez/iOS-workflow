@@ -88,7 +88,14 @@ static NSMutableDictionary *dictionary = nil;
   if (self = [super init]) {
     [self initialize];
     enabled = [decoder decodeBoolForKey:@"SKEnabled"];
-    [self poke];
+    NSDictionary *stepDict = [decoder decodeObjectForKey:@"SKSteps"];
+    for (WFStep *step in steps) {
+      id obj = [stepDict objectForKey:step.name];
+      if (obj)
+        [step decodeFromObject:obj];
+    }
+    // Allow subclass to decode before poking ourselves
+    [self performSelector:@selector(poke) withObject:nil afterDelay:0];
   }
   return self;
 }
@@ -105,6 +112,10 @@ static NSMutableDictionary *dictionary = nil;
 
 - (void)encodeWithCoder:(NSCoder *)coder {
   [coder encodeBool:enabled forKey:@"SKEnabled"];
+  NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:[steps count]];
+  for (WFStep *step in steps)
+    [dict setObject:[step encodeIntoObject] forKey:step.name];
+  [coder encodeObject:dict forKey:@"SKSteps"];
 }
 
 

@@ -23,6 +23,7 @@
 }
 
 @property (nonatomic, readonly) WFObject *item;
+@property (nonatomic, readonly) NSString *name;
 @property (nonatomic, readonly, getter=isRunning) BOOL running;
 @property (nonatomic, readonly) BOOL completed;
 @property (nonatomic, assign) float progress;
@@ -33,6 +34,10 @@
 + (id)stepForItem:(WFObject *)item metadata:(WFStepMetadata *)metadata;
 
 - (id)initForItem:(WFObject *)item metadata:(WFStepMetadata *)metadata;
+
+- (void)decodeFromObject:(id)obj;
+- (id)encodeIntoObject;
+
 - (void)reset;
 - (void)cancel;
 - (void)performInBackground;

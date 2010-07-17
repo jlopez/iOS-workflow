@@ -16,7 +16,6 @@
 
 @interface WFStep ()
 
-- (void)initialize;
 - (void)releaseToken;
 
 @end
@@ -37,17 +36,25 @@
   if (self = [super init]) {
     item = item_;
     metadata = metadata_;
-    [self initialize];
+
+    NSMethodSignature *signature = [item methodSignatureForSelector:metadata.statusSelector];
+    statusInvocation = [[NSInvocation invocationWithMethodSignature:signature] retain];
+    [statusInvocation setTarget:item];
+    [statusInvocation setSelector:metadata.statusSelector];
   }
   return self;
 }
 
 
-- (void)initialize {
-  NSMethodSignature *signature = [item methodSignatureForSelector:metadata.statusSelector];
-  statusInvocation = [[NSInvocation invocationWithMethodSignature:signature] retain];
-  [statusInvocation setTarget:item];
-  [statusInvocation setSelector:metadata.statusSelector];
+- (void)decodeFromObject:(id)obj {
+  errors = [[obj objectForKey:@"SKErrors"] retain];
+}
+
+
+- (id)encodeIntoObject {
+  if (errors)
+    return [NSDictionary dictionaryWithObject:errors forKey:@"SKErrors"];
+  return [NSDictionary dictionary];
 }
 
 
@@ -56,6 +63,11 @@
   [errors release];
   [statusInvocation release];
   [super dealloc];
+}
+
+
+- (NSString *)name {
+  return metadata.name;
 }
 
 
