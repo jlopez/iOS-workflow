@@ -161,6 +161,11 @@ static NSMutableDictionary *tokenAssociations = nil;
     executing = NO;
     executed = YES;
     NSAssert1(notifyCompletionCalled || (!completionBlock && !errors), @"%@ - notifyCompletion not called, yet completionBlock or errors set", step);
+    if (!self.valid) {
+      debug((@"%@ - %@: Ignoring completion on canceled token", step.item, step));
+      return;
+    }
+
     [self processExecutionResult:executionResult];
   }];
 }

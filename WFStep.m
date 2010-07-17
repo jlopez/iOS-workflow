@@ -23,6 +23,7 @@
 
 @implementation WFStep
 
+@synthesize item;
 @synthesize progress;
 @synthesize completed;
 @synthesize errors;
@@ -152,7 +153,11 @@
 
 - (void)doNotifyTokenCompletion:(WFToken *)token {
   if (!token.valid) {
-    debug((@"%@ - %@: Ignoring completion on invalid token", item, metadata.name));
+    // Last chance to ignore token, we're on main thread now
+    // This should be rare (token got canceled while awaiting
+    // scheduling on main thread). Normally, invalid tokens are
+    // discarded during -[WFToken execute]
+    debug((@"%@ - %@: Last chance: Ignoring completion on canceled token", item, metadata.name));
     return;
   }
 

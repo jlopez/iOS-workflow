@@ -24,6 +24,7 @@
   NSArray *errors;
 }
 
+@property (nonatomic, readonly) WFObject *item;
 @property (nonatomic, readonly, getter=isRunning) BOOL running;
 @property (nonatomic, readonly) BOOL completed;
 @property (nonatomic, assign) float progress;
