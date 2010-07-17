@@ -35,7 +35,10 @@ static NSMutableDictionary *tokenAssociations = nil;
 
 + (id)associatedTokenForObject:(id)obj {
   @synchronized (tokenAssociations) {
-    return [tokenAssociations objectForKey:[NSValue valueWithPointer:obj]];
+    WFToken *token = [tokenAssociations objectForKey:[NSValue valueWithPointer:obj]];
+    NSAssert(token != nil, @"+[WFToken %@]: No token associated for object %p (%@)",
+             NSStringFromSelector(_cmd), obj, obj);
+    return token;
   }
 }
 
