@@ -15,6 +15,7 @@
 @interface WFObject ()
 
 @property (nonatomic, assign) BOOL enabled;
+@property (nonatomic, assign) BOOL running;
 
 + (NSArray *)introspect;
 
@@ -26,6 +27,7 @@
 @implementation WFObject
 
 @synthesize enabled;
+@synthesize running;
 
 
 static NSMutableDictionary *dictionary = nil;
@@ -124,15 +126,23 @@ static NSMutableDictionary *dictionary = nil;
   if (!enabled)
     return;
 
+  BOOL newRunning = NO;
   for (WFStep *step in steps) {
-    if (step.running)
+    if (step.running) {
+      newRunning = YES;
       continue;
-    if (step.completed)
+    }
+    if (step.completed || step.failed)
       continue;
     if (![step mayRun])
       continue;
     [step performInBackground];
+    newRunning = YES;
   }
+
+  // Update running status (and KVObservers)
+  if (newRunning != running)
+    self.running = newRunning;
 }
 
 
@@ -144,6 +154,8 @@ static NSMutableDictionary *dictionary = nil;
   self.enabled = NO;
   for (WFStep *step in steps)
     [step cancel];
+
+  self.running = NO;
 }
 
 
@@ -183,15 +195,7 @@ static NSMutableDictionary *dictionary = nil;
 }
 
 
-- (BOOL)running {
-  for (WFStep *step in steps)
-    if (step.running)
-      return YES;
-  return NO;
-}
-
-
-- (BOOL)completed {
+- (BOOL)isCompleted {
   for (WFStep *step in steps)
     if (step.completed)
       return YES;
@@ -199,7 +203,7 @@ static NSMutableDictionary *dictionary = nil;
 }
 
 
-- (BOOL)failed {
+- (BOOL)isFailed {
   for (WFStep *step in steps)
     if (step.failed)
       return YES;

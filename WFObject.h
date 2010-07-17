@@ -15,10 +15,10 @@
 
 @property (nonatomic, readonly) float overallProgress;
 @property (nonatomic, readonly) int totalSteps; // Dynamically generated based on subclass impl
-@property (nonatomic, readonly) BOOL enabled; // YES if item will schedule missing steps when poked
-@property (nonatomic, readonly) BOOL running; // YES if any step is currently executing
-@property (nonatomic, readonly) BOOL completed; // YES if all steps were completed successfully
-@property (nonatomic, readonly) BOOL failed; // YES if any step has an error
+@property (nonatomic, readonly, getter=isEnabled) BOOL enabled; // YES if item will schedule missing steps when poked
+@property (nonatomic, readonly, getter=isRunning) BOOL running; // YES if any step is currently executing
+@property (nonatomic, readonly, getter=isCompleted) BOOL completed; // YES if all steps were completed successfully
+@property (nonatomic, readonly, getter=isFailed) BOOL failed; // YES if any step has an error
 @property (nonatomic, readonly) NSArray *errors; // Array with all step errors
 
 - (void)start;   // If running || completed || error, does nothing
